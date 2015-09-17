@@ -5,7 +5,8 @@ from cliquet import schema
 
 from cliquet.authorization import get_object_id
 
-from kinto.views import NameGenerator, object_exists_or_404
+from kinto.views import (ProtectedViewSet, NameGenerator, object_exists_or_404,
+                         handle_default_bucket)
 
 
 class GroupSchema(schema.ResourceSchema):
@@ -15,24 +16,23 @@ class GroupSchema(schema.ResourceSchema):
 
 @resource.register(name='group',
                    collection_path='/buckets/{{bucket_id}}/groups',
-                   record_path='/buckets/{{bucket_id}}/groups/{{id}}')
+                   record_path='/buckets/{{bucket_id}}/groups/{{id}}',
+                   viewset=ProtectedViewSet())
 class Group(resource.ProtectedResource):
 
     mapping = GroupSchema()
 
     def __init__(self, *args, **kwargs):
         super(Group, self).__init__(*args, **kwargs)
-
-        bucket_id = self.request.matchdict['bucket_id']
-        object_exists_or_404(self.request,
-                             collection_id='bucket',
-                             object_id=bucket_id)
-
         self.collection.id_generator = NameGenerator()
 
+    def _get_record_or_404(self, record_id):
+        handle_default_bucket(self, self.bucket_id)
+        return super(Group, self)._get_record_or_404(record_id)
+
     def get_parent_id(self, request):
-        bucket_id = request.matchdict['bucket_id']
-        parent_id = '/buckets/%s' % bucket_id
+        self.bucket_id = request.matchdict['bucket_id']
+        parent_id = '/buckets/%s' % self.bucket_id
         return parent_id
 
     def collection_delete(self):

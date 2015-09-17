@@ -4,7 +4,7 @@ from cliquet.errors import raise_invalid
 from jsonschema import exceptions as jsonschema_exceptions
 from pyramid.settings import asbool
 
-from kinto.views import object_exists_or_404
+from kinto.views import ProtectedViewSet, object_exists_or_404, handle_default_bucket
 
 
 class RecordSchema(schema.ResourceSchema):
@@ -17,27 +17,32 @@ _parent_path = '/buckets/{{bucket_id}}/collections/{{collection_id}}'
 
 @resource.register(name='record',
                    collection_path=_parent_path + '/records',
-                   record_path=_parent_path + '/records/{{id}}')
+                   record_path=_parent_path + '/records/{{id}}',
+                   viewset=ProtectedViewSet())
 class Record(resource.ProtectedResource):
 
     mapping = RecordSchema()
     schema_field = 'schema'
 
-    def __init__(self, *args, **kwargs):
-        super(Record, self).__init__(*args, **kwargs)
+    # def __init__(self, *args, **kwargs):
+    #     super(Record, self).__init__(*args, **kwargs)
 
-        bucket_id = self.request.matchdict['bucket_id']
-        collection_id = self.request.matchdict['collection_id']
-        parent_id = '/buckets/%s' % bucket_id
+    #     handle_default_bucket(self, self.bucket_id, )
+
+    def _get_record_or_404(self, record_id):
+        handle_default_bucket(self, self.bucket_id, self.collection_id)
+        collection_parent_id = '/buckets/%s' % self.bucket_id
         self._collection = object_exists_or_404(self.request,
                                                 collection_id='collection',
-                                                parent_id=parent_id,
-                                                object_id=collection_id)
+                                                parent_id=collection_parent_id,
+                                                object_id=self.collection_id)
+        return super(Record, self)._get_record_or_404(record_id)
 
     def get_parent_id(self, request):
-        bucket_id = request.matchdict['bucket_id']
-        collection_id = request.matchdict['collection_id']
-        return '/buckets/%s/collections/%s' % (bucket_id, collection_id)
+        self.bucket_id = request.matchdict['bucket_id']
+        self.collection_id = request.matchdict['collection_id']
+        return '/buckets/%s/collections/%s' % (self.bucket_id,
+                                               self.collection_id)
 
     def is_known_field(self, field_name):
         """Without schema, any field is considered as known."""

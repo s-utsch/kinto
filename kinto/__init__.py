@@ -5,7 +5,6 @@ import cliquet
 from pyramid.config import Configurator
 from pyramid.settings import asbool
 from pyramid.security import Authenticated
-from cliquet.authorization import RouteFactory
 
 # Module version, as defined in PEP-0396.
 __version__ = pkg_resources.get_distribution(__package__).version
@@ -30,15 +29,10 @@ DEFAULT_SETTINGS = {
 
 
 def main(global_config, **settings):
-    config = Configurator(settings=settings, root_factory=RouteFactory)
+    config = Configurator(settings=settings)
     cliquet.initialize(config,
                        version=__version__,
                        default_settings=DEFAULT_SETTINGS)
-
-    # Redirect default to the right endpoint
-    config.add_route('default_bucket_collection',
-                     '/buckets/default/{subpath:.*}')
-    config.add_route('default_bucket', '/buckets/default')
 
     # Scan Kinto views.
     settings = config.get_settings()

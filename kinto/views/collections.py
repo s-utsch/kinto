@@ -3,7 +3,7 @@ import jsonschema
 from cliquet import resource
 from jsonschema import exceptions as jsonschema_exceptions
 
-from kinto.views import NameGenerator
+from kinto.views import ProtectedViewSet, NameGenerator, handle_default_bucket
 
 
 class JSONSchemaMapping(colander.SchemaNode):
@@ -35,7 +35,8 @@ class CollectionSchema(resource.ResourceSchema):
 @resource.register(name='collection',
                    collection_methods=('GET',),
                    collection_path='/buckets/{{bucket_id}}/collections',
-                   record_path='/buckets/{{bucket_id}}/collections/{{id}}')
+                   record_path='/buckets/{{bucket_id}}/collections/{{id}}',
+                   viewset=ProtectedViewSet())
 class Collection(resource.ProtectedResource):
     mapping = CollectionSchema()
     permissions = ('read', 'write', 'record:create')
@@ -44,9 +45,13 @@ class Collection(resource.ProtectedResource):
         super(Collection, self).__init__(*args, **kwargs)
         self.collection.id_generator = NameGenerator()
 
+    def _get_record_or_404(self, record_id):
+        handle_default_bucket(self, self.bucket_id, record_id)
+        return super(Collection, self)._get_record_or_404(record_id)
+
     def get_parent_id(self, request):
-        bucket_id = request.matchdict['bucket_id']
-        parent_id = '/buckets/%s' % bucket_id
+        self.bucket_id = request.matchdict['bucket_id']
+        parent_id = '/buckets/%s' % self.bucket_id
         return parent_id
 
     def delete(self):

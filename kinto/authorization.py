@@ -1,4 +1,8 @@
-from cliquet.authorization import AuthorizationPolicy as CliquetAuthorization
+from six import text_type
+from uuid import UUID
+
+from cliquet import authorization as cliquet_authorization
+from cliquet import utils as cliquet_utils
 from pyramid.security import IAuthorizationPolicy
 from zope.interface import implementer
 
@@ -18,7 +22,6 @@ from zope.interface import implementer
 #
 # Bound permission:
 #    A permission bound to an object (e.g. "collection:create")
-
 
 # Dictionary which list all permissions a given permission enables.
 PERMISSIONS_INHERITANCE_TREE = {
@@ -66,6 +69,8 @@ PERMISSIONS_INHERITANCE_TREE = {
     }
 }
 
+DEFAULT_BUCKET_NAME = 'default'
+
 
 def get_object_type(object_uri):
     """Return the type of an object from its id."""
@@ -104,6 +109,7 @@ def build_permission_tuple(obj_type, unbound_permission, obj_parts):
                          'Trying to build type "%s" from object key "%s".' % (
                              obj_type, '/'.join(obj_parts)))
     length = PARTS_LENGTH[obj_type]
+
     return ('/'.join(obj_parts[:length]), unbound_permission)
 
 
@@ -146,6 +152,48 @@ def groupfinder(userid, request):
 
 
 @implementer(IAuthorizationPolicy)
-class AuthorizationPolicy(CliquetAuthorization):
+class AuthorizationPolicy(cliquet_authorization.AuthorizationPolicy):
+    def permits(self, context, principals, permission):
+
+        print context, context.on_default_bucket, permission
+        if context.on_default_bucket:
+            return True
+        return super(AuthorizationPolicy, self).permits(context,
+                                                        principals,
+                                                        permission)
+
     def get_bound_permissions(self, *args, **kwargs):
         return build_permissions_set(*args, **kwargs)
+
+
+class RouteFactory(cliquet_authorization.RouteFactory):
+    def __init__(self, request):
+        self.on_default_bucket = False
+        # Default bucket requires authentication.
+        if request.prefixed_userid:
+            id_key = 'bucket_id'
+            if id_key not in request.matchdict:
+                id_key = 'id'
+            bucket_id = request.matchdict.get(id_key)
+            if bucket_id == DEFAULT_BUCKET_NAME:
+                self.on_default_bucket = True
+
+        # Replace the bucket id `default` by a hmac of userid.
+        settings = request.registry.settings
+        hmac_secret = settings['cliquet.userid_hmac_secret']
+        # Build the user unguessable bucket_id UUID from its user_id
+        digest = cliquet_utils.hmac_digest(hmac_secret,
+                                           request.prefixed_userid)
+        self.hmac_userid = text_type(UUID(digest[:32]))
+
+        if self.on_default_bucket:
+            request.matchdict[id_key] = self.hmac_userid
+
+        super(RouteFactory, self).__init__(request)
+
+    def get_object_id(self, request):
+        object_uri = super(RouteFactory, self).get_object_id(request)
+        if self.on_default_bucket:
+            object_uri = object_uri.replace(DEFAULT_BUCKET_NAME,
+                                                 self.hmac_userid)
+        return object_uri
