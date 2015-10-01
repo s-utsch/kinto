@@ -16,12 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_SETTINGS = {
-    'cliquet.cache_backend': 'cliquet.cache.memory',
-    'cliquet.permission_backend': 'cliquet.permission.memory',
-    'cliquet.storage_backend': 'cliquet.storage.memory',
-    'cliquet.project_name': 'Kinto',
-    'cliquet.project_docs': 'https://kinto.readthedocs.org/',
-    'cliquet.bucket_create_principals': Authenticated,
+    'kinto.cache_backend': 'cliquet.cache.memory',
+    'kinto.permission_backend': 'cliquet.permission.memory',
+    'kinto.storage_backend': 'cliquet.storage.memory',
+    'kinto.project_docs': 'https://kinto.readthedocs.org/',
+    'kinto.bucket_create_principals': Authenticated,
     'multiauth.authorization_policy': (
         'kinto.authorization.AuthorizationPolicy'),
     'multiauth.groupfinder': (
@@ -32,6 +31,10 @@ DEFAULT_SETTINGS = {
 
 def main(global_config, **settings):
     config = Configurator(settings=settings, root_factory=RouteFactory)
+
+    # Force project name, since it determines settings prefix.
+    config.add_settings({'cliquet.project_name': 'kinto'})
+
     cliquet.initialize(config,
                        version=__version__,
                        default_settings=DEFAULT_SETTINGS)
@@ -40,6 +43,9 @@ def main(global_config, **settings):
     config.add_route('default_bucket_collection',
                      '/buckets/default/{subpath:.*}')
     config.add_route('default_bucket', '/buckets/default')
+
+    # Retro-compatibility with first Kinto clients.
+    config.registry.public_settings.add('cliquet.batch_max_requests')
 
     # Scan Kinto views.
     settings = config.get_settings()

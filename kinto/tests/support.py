@@ -44,10 +44,10 @@ class BaseWebTest(object):
     def get_app_settings(self, additional_settings=None):
         settings = cliquet_support.DEFAULT_SETTINGS.copy()
         settings.update(**DEFAULT_SETTINGS)
-        settings['cliquet.cache_backend'] = 'cliquet.cache.memory'
-        settings['cliquet.storage_backend'] = 'cliquet.storage.memory'
-        settings['cliquet.permission_backend'] = 'cliquet.permission.memory'
-        settings['cliquet.userid_hmac_secret'] = "this is not a secret"
+        settings['kinto.cache_backend'] = 'cliquet.cache.memory'
+        settings['kinto.storage_backend'] = 'cliquet.storage.memory'
+        settings['kinto.permission_backend'] = 'cliquet.permission.memory'
+        settings['kinto.userid_hmac_secret'] = "this is not a secret"
 
         if additional_settings is not None:
             settings.update(additional_settings)
